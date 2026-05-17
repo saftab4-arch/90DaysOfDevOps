@@ -1,0 +1,151 @@
+## Linux Boot Flow
+
+Power On  
+→ BIOS / UEFI  
+→ Bootloader (GRUB)  
+→ Linux Kernel Loads  
+→ systemd starts (PID 1)  
+→ Services & Processes Start
+
+Example services:
+- Docker
+- SSH
+- Kubernetes components
+- Networking services
+
+---
+
+# Core Components of Linux
+
+## 1. Kernel
+The kernel is the core of Linux.
+
+Responsibilities:
+- Memory management
+- CPU scheduling
+- Process management
+- Device communication
+- File system management
+
+Command:
+```bash
+uname -r
+
+
+2. User Space
+
+User space is where users and applications run.
+
+Examples:
+
+Bash shell
+Docker CLI
+Terminal applications
+Editors like nano/vim
+
+3. systemd (PID 1)
+
+systemd is the first process started by the kernel.
+
+Responsibilities:
+
+Starts services during boot
+Restarts failed services
+Manages background processes
+Handles logs and service states
+
+Useful command:
+
+systemctl status ssh
+
+4: Linux File System Basics
+
+Everything in Linux starts from /
+
+Examples:
+
+Directory	Purpose
+/home	User files
+/etc	Configuration files
+/bin	Basic commands
+/sbin	System binaries
+/proc	Process information
+/sys	System information
+/boot	Boot files
+/mnt	Mounted storage
+
+
+5: Process Management
+
+Everything in Linux runs as a process.
+
+Process States - State	Meaning
+Running -	Currently using CPU
+Sleeping -	Waiting for task/input
+Stopped	- Paused process
+Zombie	- Finished but not cleaned up
+
+
+
+5 Linux Commands I Will Use Daily
+1. pwd
+
+Shows current directory
+
+2. ls -l
+
+Lists files and directories
+
+3. cd
+
+Changes directory
+
+4. df -h
+
+Shows disk usage
+
+5. free -h
+
+Shows memory usage
+
+
+
+Additional Useful Commands
+
+mkdir test
+touch file.txt
+cat file.txt
+history
+ip a
+uptime
+date
+nohup
+wc -l
+
+Head and Tail Commands
+
+First line of file
+head file.txt -n 1
+
+Last line of file
+tail file.txt -n 1
+
+Help Commands
+man mkdir
+mkdir --help
+
+Why This Matters for DevOps
+
+Understanding Linux internals helps with:
+
+Troubleshooting crashed services
+Debugging CPU/memory issues
+Understanding logs
+Managing production servers
+Restarting services confidently
+
+Linux is the foundation of modern cloud and DevOps environments.
+
+
+
+
