@@ -31,6 +31,8 @@ Command:
 ```bash
 uname -r
 
+![Kernel Version](screenshots/uname-r.png) 
+
 
 2. User Space
 
@@ -58,6 +60,8 @@ Useful command:
 
 systemctl status ssh
 
+![systemd PID1](screenshots/systemd-pid1.png) 
+
 4: Linux File System Basics
 
 Everything in Linux starts from /
@@ -74,6 +78,7 @@ Directory	Purpose
 /boot	Boot files
 /mnt	Mounted storage
 
+![OS Release](screenshots/os-release.png)
 
 5: Process Management
 
@@ -85,12 +90,22 @@ Sleeping -	Waiting for task/input
 Stopped	- Paused process
 Zombie	- Finished but not cleaned up
 
+![ps aux](screenshots/ps-aux.png) 
+
+![top](screenshots/top.png)
+
+![htop](screenshots/htop.png)
+
+![systemctl](screenshots/systemctl-ssh.png)
+
 
 
 5 Linux Commands I Will Use Daily
 1. pwd
 
 Shows current directory
+
+![pwd](screenshots/pwd.png)
 
 2. ls -l
 
@@ -104,19 +119,26 @@ Changes directory
 
 Shows disk usage
 
+![df-h](screenshots/df-h.png)
+
 5. free -h
 
 Shows memory usage
 
+![free-h](screenshots/free-h.png)
 
+6. ip a
+
+![ip a](screenshots/ip-a.png)
 
 Additional Useful Commands
+
+
 
 mkdir test
 touch file.txt
 cat file.txt
 history
-ip a
 uptime
 date
 nohup
@@ -127,12 +149,20 @@ Head and Tail Commands
 First line of file
 head file.txt -n 1
 
+![head](screenshots/head.png)
+
+
 Last line of file
 tail file.txt -n 1
 
+![tail](screenshots/tail.png)
+
 Help Commands
 man mkdir
+![man mkdir](screenshots/man-mkdir.png)
+
 mkdir --help
+![mkdir help](screenshots/mkdir-help.png)
 
 Why This Matters for DevOps
 
@@ -145,6 +175,27 @@ Managing production servers
 Restarting services confidently
 
 Linux is the foundation of modern cloud and DevOps environments.
+
+
+# Docker Commands Used
+
+## Create Container
+
+```bash
+docker run -itd --name linux-lab ubuntu bash
+```
+
+## Login into Container
+
+```bash
+docker exec -it linux-lab bash
+```
+
+## Delete Container
+
+```bash
+exit
+docker rm -f linux-lab
 
 
 
