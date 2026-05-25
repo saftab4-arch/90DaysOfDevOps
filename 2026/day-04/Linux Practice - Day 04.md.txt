@@ -1,0 +1,179 @@
+# Linux Practice - Day 04
+
+## Objective
+
+The goal of this practice was to build hands-on Linux troubleshooting experience using real system commands.  
+During this lab, I inspected running processes, checked system services, reviewed logs, and followed a basic troubleshooting workflow for the SSH service.
+
+---
+
+# Process Checks
+
+## 1. Check Running SSH Processes
+
+```bash
+ps aux | grep ssh | grep -v grep
+```
+
+### What this command does
+- `ps aux` → Displays all running processes on the system
+- `grep ssh` → Filters only SSH-related processes
+- `grep -v grep` → Removes the grep process itself from output
+
+### Why it matters for troubleshooting
+This helps confirm whether the SSH daemon (`sshd`) is actively running on the server.
+
+### Example Use Case
+If SSH access stops working, this command helps verify whether the SSH process is alive.
+
+---
+
+## 2. Monitor System Processes and Resource Usage
+
+```bash
+top -n 1 | head
+```
+
+### What this command does
+- `top -n 1` → Displays one snapshot of running processes and system resource usage
+- `head` → Limits output to first few lines for readability
+
+### Why it matters for troubleshooting
+This command helps identify:
+- High CPU usage
+- Memory pressure
+- Load averages
+- Number of active processes
+
+### Example Use Case
+Useful during incidents where a server becomes slow or overloaded.
+
+---
+
+# Service Checks
+
+## 3. Check SSH Service Status
+
+```bash
+systemctl status ssh
+```
+
+### What this command does
+Displays detailed information about the SSH service including:
+- Active status
+- Main PID
+- Recent service logs
+- Startup state
+
+### Why it matters for troubleshooting
+This confirms whether the SSH service is:
+- running correctly
+- stopped
+- failed
+- restarting unexpectedly
+
+### Example Use Case
+One of the first commands used when troubleshooting remote access issues.
+
+---
+
+## 4. List Active System Services
+
+```bash
+systemctl list-units --type=service | head
+```
+
+### What this command does
+- Lists active systemd services currently running on the server
+- `head` limits the output for readability
+
+### Why it matters for troubleshooting
+Helps identify:
+- Active services
+- Failed services
+- System health overview
+
+### Example Use Case
+Useful after reboots or deployments to confirm critical services are running.
+
+---
+
+# Log Checks
+
+## 5. Review SSH Service Logs
+
+```bash
+journalctl -u ssh | tail -10
+```
+
+### What this command does
+- `journalctl -u ssh` → Displays logs specifically for the SSH service
+- `tail -10` → Shows only the most recent 10 log entries
+
+### Why it matters for troubleshooting
+Helps identify:
+- Failed login attempts
+- SSH startup errors
+- Service restarts
+- Authentication activity
+
+### Example Use Case
+Useful when users cannot connect to the server through SSH.
+
+---
+
+## 6. Review System Logs
+
+```bash
+tail -n 20 /var/log/syslog
+```
+
+### What this command does
+- Displays the last 20 lines from the main Linux system log file
+
+### Why it matters for troubleshooting
+Provides visibility into:
+- System warnings
+- Service events
+- Authentication logs
+- Kernel/system messages
+
+### Example Use Case
+Often used during incident investigations to identify recent system activity.
+
+---
+
+# Mini Troubleshooting Workflow
+
+During this lab, I performed a simple troubleshooting workflow for the SSH service:
+
+1. Verified the SSH process was running using `ps aux`
+2. Checked system load and running processes using `top`
+3. Confirmed SSH service health using `systemctl status`
+4. Listed active services using `systemctl list-units`
+5. Reviewed SSH logs using `journalctl`
+6. Reviewed overall system logs using `/var/log/syslog`
+
+---
+
+# Key Concepts Learned
+
+- Linux process monitoring
+- Service management with systemctl
+- Systemd service inspection
+- Log analysis using journalctl and syslog
+- Basic troubleshooting workflow
+- Filtering command output using pipes and grep
+
+---
+
+# Conclusion
+
+This practice helped strengthen my understanding of Linux fundamentals used daily in DevOps and system administration.  
+The commands practiced in this lab are commonly used for:
+- production troubleshooting
+- service monitoring
+- incident investigation
+- server health checks
+
+These foundational Linux skills are essential for real-world DevOps operations.
