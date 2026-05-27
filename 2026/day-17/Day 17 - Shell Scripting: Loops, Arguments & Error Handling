@@ -1,0 +1,643 @@
+# Day 17 - Shell Scripting: Loops, Arguments & Error Handling
+
+## Introduction
+
+Today I learned advanced Bash scripting concepts including:
+
+- For loops
+- While loops
+- Command-line arguments
+- Package installation automation
+- Error handling
+- Root user validation
+
+These concepts are heavily used in Linux administration, DevOps automation, monitoring, deployment scripts, and CI/CD pipelines.
+
+---
+
+# Task 1 - For Loops
+
+---
+
+# Script 1 - `for_loop.sh`
+
+```bash
+#!/bin/bash
+
+for fruit in apple banana mango orange grapes
+do
+    echo "Fruit: $fruit"
+done
+```
+
+---
+
+# Explanation
+
+## `for`
+
+Used to loop through a list of items.
+
+Syntax:
+
+```bash
+for variable in list
+do
+    commands
+done
+```
+
+---
+
+## `fruit`
+
+Temporary loop variable.
+
+During each loop iteration:
+- apple
+- banana
+- mango
+- orange
+- grapes
+
+gets stored inside `$fruit`.
+
+---
+
+## `do`
+
+Starts the loop block.
+
+---
+
+## `done`
+
+Ends the loop block.
+
+---
+
+## `echo`
+
+Prints output to the terminal.
+
+---
+
+# Output
+
+```text
+Fruit: apple
+Fruit: banana
+Fruit: mango
+Fruit: orange
+Fruit: grapes
+```
+
+---
+
+# Script 2 - `count.sh`
+
+```bash
+#!/bin/bash
+
+for number in {1..10}
+do
+    echo "$number"
+done
+```
+
+---
+
+# Explanation
+
+## `{1..10}`
+
+This is called Bash sequence expansion.
+
+It automatically generates:
+
+```text
+1 2 3 4 5 6 7 8 9 10
+```
+
+---
+
+# Output
+
+```text
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+```
+
+---
+
+# Task 2 - While Loop
+
+## Script - `countdown.sh`
+
+```bash
+#!/bin/bash
+
+read -p "Enter starting number: " number
+
+while [ "$number" -ge 0 ]
+do
+    echo "$number"
+
+    number=$((number - 1))
+done
+
+echo "Done!"
+```
+
+---
+
+# Explanation
+
+## `read`
+
+Used to take user input.
+
+---
+
+## `-p`
+
+Displays a prompt message.
+
+Example:
+
+```bash
+read -p "Enter number: " number
+```
+
+---
+
+## `while`
+
+Repeats commands while condition is true.
+
+Syntax:
+
+```bash
+while [ condition ]
+do
+    commands
+done
+```
+
+---
+
+## `[ ]`
+
+Used for condition testing.
+
+Spaces are mandatory.
+
+Correct:
+
+```bash
+[ "$number" -ge 0 ]
+```
+
+Incorrect:
+
+```bash
+["$number"-ge0]
+```
+
+---
+
+## `-ge`
+
+Means:
+- greater than or equal
+
+---
+
+## Arithmetic Expansion
+
+```bash
+$((number - 1))
+```
+
+Used for mathematical operations in Bash.
+
+Without `$(( ))`, Bash treats values as strings.
+
+---
+
+# Output Example
+
+```text
+Enter starting number: 5
+5
+4
+3
+2
+1
+0
+Done!
+```
+
+---
+
+# Task 3 - Command-Line Arguments
+
+---
+
+# Script 1 - `greet.sh`
+
+```bash
+#!/bin/bash
+
+if [ -z "$1" ]
+then
+    echo "Usage: ./greet.sh <name>"
+    exit 1
+fi
+
+echo "Hello, $1!"
+```
+
+---
+
+# Explanation
+
+## `$1`
+
+Represents the first command-line argument.
+
+Example:
+
+```bash
+./greet.sh Aftab
+```
+
+Then:
+
+```text
+$1 = Aftab
+```
+
+---
+
+## `-z`
+
+Checks whether a string is empty.
+
+---
+
+## `exit 1`
+
+Stops the script with an error exit code.
+
+| Exit Code | Meaning |
+|-----------|----------|
+| `0` | Success |
+| Non-zero | Error |
+
+---
+
+# Output Example
+
+```bash
+./greet.sh Aftab
+```
+
+```text
+Hello, Aftab!
+```
+
+---
+
+# Script 2 - `args_demo.sh`
+
+```bash
+#!/bin/bash
+
+echo "Script Name: $0"
+
+echo "Total Arguments: $#"
+
+echo "All Arguments: $@"
+```
+
+---
+
+# Explanation
+
+| Variable | Meaning |
+|----------|----------|
+| `$0` | Script name |
+| `$1` | First argument |
+| `$2` | Second argument |
+| `$#` | Total number of arguments |
+| `$@` | All arguments |
+
+---
+
+# Example
+
+```bash
+./args_demo.sh hello world linux
+```
+
+---
+
+# Output
+
+```text
+Script Name: ./args_demo.sh
+Total Arguments: 3
+All Arguments: hello world linux
+```
+
+---
+
+# Task 4 - Package Installation Script
+
+## Script - `install_packages.sh`
+
+```bash
+#!/bin/bash
+
+if [ "$EUID" -ne 0 ]
+then
+    echo "Please run as root"
+    exit 1
+fi
+
+PACKAGES="nginx curl wget"
+
+for package in $PACKAGES
+do
+
+    if dpkg -s "$package" &> /dev/null
+    then
+        echo "$package is already installed"
+
+    else
+        echo "Installing $package..."
+
+        apt-get install -y "$package"
+
+        echo "$package installation completed"
+    fi
+
+done
+```
+
+---
+
+# Explanation
+
+## `$EUID`
+
+Represents current user ID.
+
+| Value | Meaning |
+|------|----------|
+| `0` | Root user |
+| Non-zero | Normal user |
+
+---
+
+## `-ne`
+
+Means:
+- not equal
+
+---
+
+## `dpkg -s`
+
+Checks package installation status.
+
+---
+
+## `&>`
+
+Redirects:
+- standard output
+- standard error
+
+---
+
+## `/dev/null`
+
+Special Linux file that discards output.
+
+Often called:
+- null device
+- black hole
+
+Used to suppress terminal output.
+
+---
+
+## `apt-get install -y`
+
+Installs packages automatically.
+
+### `-y`
+
+Automatically answers "yes" during installation.
+
+---
+
+# Output Example
+
+```text
+nginx is already installed
+curl is already installed
+Installing wget...
+wget installation completed
+```
+
+---
+
+# Task 5 - Error Handling
+
+## Script - `safe_script.sh`
+
+```bash
+#!/bin/bash
+
+set -e
+
+mkdir /tmp/devops-test || echo "Directory already exists"
+
+cd /tmp/devops-test || echo "Cannot enter directory"
+
+touch testfile.txt || echo "Cannot create file"
+
+echo "Script completed successfully"
+```
+
+---
+
+# Explanation
+
+## `set -e`
+
+Tells Bash:
+- exit immediately if any command fails
+
+Important for automation and production scripts.
+
+---
+
+## `mkdir`
+
+Creates directory.
+
+Example:
+
+```bash
+mkdir /tmp/devops-test
+```
+
+Creates:
+
+```text
+/tmp/devops-test
+```
+
+---
+
+## `/tmp`
+
+Linux temporary directory.
+
+Used for:
+- temporary files
+- testing
+- scripts
+- caches
+
+---
+
+## `||`
+
+Logical OR operator.
+
+Meaning:
+
+```text
+If left command fails, execute right command
+```
+
+Example:
+
+```bash
+mkdir test || echo "failed"
+```
+
+---
+
+## `cd`
+
+Changes current directory.
+
+---
+
+## `touch`
+
+Creates an empty file.
+
+Example:
+
+```bash
+touch testfile.txt
+```
+
+---
+
+# Files Created
+
+```text
+/tmp/devops-test/testfile.txt
+```
+
+---
+
+# How To Verify
+
+Check directory:
+
+```bash
+ls /tmp
+```
+
+Check file:
+
+```bash
+ls /tmp/devops-test
+```
+
+---
+
+# Important Flags and Symbols Learned
+
+| Flag / Symbol | Meaning |
+|---------------|----------|
+| `-ge` | Greater than or equal |
+| `-ne` | Not equal |
+| `-z` | String is empty |
+| `$1` | First argument |
+| `$#` | Number of arguments |
+| `$@` | All arguments |
+| `$0` | Script name |
+| `$EUID` | Current user ID |
+| `set -e` | Exit on error |
+| `||` | OR operator |
+| `&>` | Redirect stdout and stderr |
+| `/dev/null` | Discard output |
+
+---
+
+# Key Learnings
+
+1. Learned how loops automate repetitive tasks
+2. Learned command-line arguments and exit codes
+3. Learned package installation automation and error handling
+
+---
+
+# Files Created
+
+| File | Purpose |
+|------|----------|
+| `for_loop.sh` | Loop through fruits |
+| `count.sh` | Print numbers 1-10 |
+| `countdown.sh` | Countdown using while loop |
+| `greet.sh` | Accept command-line arguments |
+| `args_demo.sh` | Display script arguments |
+| `install_packages.sh` | Install packages automatically |
+| `safe_script.sh` | Error handling practice |
+
+---
+
+# Screenshots
+
+Add screenshots for:
+- Script creation
+- Script execution
+- Loop outputs
+- Package installation
+- Root permission check
+- Error handling
+- File creation in `/tmp`
+
+---
+
+# Conclusion
+
+Day 17 introduced important Bash scripting concepts used in real-world Linux administration and DevOps automation. Learning loops, arguments, package management, and error handling is essential for building reliable automation scripts.
