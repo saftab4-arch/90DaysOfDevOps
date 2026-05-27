@@ -1,0 +1,777 @@
+# Day 19 — Shell Scripting Project: Log Rotation, Backup & Crontab
+
+> A real-world mini-project combining everything from Days 16–18.
+> Three production-style scripts + cron scheduling = your first taste of automated infrastructure ops.
+
+---
+
+## Project Overview
+
+This project ties together **every concept from the first three days** of shell scripting:
+
+- **Day 16** — Variables, `if/else`, file checks, exit codes
+- **Day 17** — `find`, loops, command-line arguments, error handling, `||`
+- **Day 18** — Functions, strict mode (`set -euo pipefail`), local thinking
+
+The deliverables are three scripts that any sysadmin would actually use:
+
+| Script | What it does |
+|--------|--------------|
+| `log_rotate.sh` | Compresses old logs, deletes ancient ones |
+| `backup.sh` | Creates timestamped tar.gz backups, prunes old ones |
+| `maintenance.sh` | Combines the above two, runs daily via cron, logs everything |
+
+---
+
+## Table of Contents
+
+- [Setup — Sandbox Environment](#setup--sandbox-environment)
+- [Task 1 — Log Rotation Script](#task-1--log-rotation-script)
+- [Task 2 — Server Backup Script](#task-2--server-backup-script)
+- [Task 3 — Crontab Understanding & Entries](#task-3--crontab-understanding--entries)
+- [Task 4 — Scheduled Maintenance Script](#task-4--scheduled-maintenance-script)
+- [Cron Entries Summary](#cron-entries-summary)
+- [Key Learnings](#key-learnings)
+
+---
+
+## Setup — Sandbox Environment
+
+Before writing any scripts, I built a sandbox so I could test against fake files instead of real `/var/log` contents (you don't want to nuke real logs during testing).
+
+### Commands
+
+```bash
+mkdir -p ~/2026/day-19
+mkdir -p ~/test-logs
+cd ~/test-logs
+
+# Fresh files (today)
+touch app.log error.log access.log
+
+# Files that need to look 10 days old (rotation target)
+touch old1.log old2.log old3.log
+
+# Files that need to look 40 days old (deletion target)
+touch ancient1.log.gz ancient2.log.gz
+
+# Backdate the files using touch -d
+touch -d "10 days ago" old1.log old2.log old3.log
+touch -d "40 days ago" ancient1.log.gz ancient2.log.gz
+
+ls -la --time-style=full-iso
+```
+
+### Commands & Flags Explained
+
+| Command / Flag | Meaning |
+|----------------|---------|
+| `mkdir -p` | Make directory, including parents. `-p` makes it safe to re-run (doesn't error if already exists). |
+| `touch` | Create an empty file (or update timestamp if it exists). |
+| `touch -d "10 days ago"` | The killer trick — `-d` lets you set the file's modification time to any date. Accepts human strings like `"10 days ago"` or `"2025-01-15"`. |
+| `ls -la` | List all (`-a`) in long format (`-l`) showing dates, sizes, permissions. |
+| `--time-style=full-iso` | Show timestamps in full ISO format so we can verify the backdating worked. |
+
+### Screenshot
+
+![Sandbox setup with backdated files](screenshots/day19/setup-sandbox.png)
+
+You can see the three different age groups clearly in the timestamps — today's files, 10-day-old files, and 40-day-old files.
+
+---
+
+## Task 1 — Log Rotation Script
+
+### Goal
+
+Build `log_rotate.sh` that:
+1. Takes a log directory as argument
+2. Compresses `.log` files older than 7 days using `gzip`
+3. Deletes `.gz` files older than 30 days
+4. Prints counts of compressed and deleted files
+5. Exits with error if the directory doesn't exist
+
+### Full Script
+
+```bash
+#!/bin/bash
+
+# ===========================================
+# Log Rotation Script
+# Usage: ./log_rotate.sh /path/to/log/dir
+# ===========================================
+
+set -euo pipefail
+
+# ---- Step 1: Check we got an argument ----
+if [ -z "${1:-}" ]; then
+    echo "Usage: $0 <log_directory>"
+    exit 1
+fi
+
+LOG_DIR="$1"
+
+# ---- Step 2: Check the directory actually exists ----
+if [ ! -d "$LOG_DIR" ]; then
+    echo "Error: Directory '$LOG_DIR' does not exist"
+    exit 1
+fi
+
+echo "===== Log Rotation Starting ====="
+echo "Target directory: $LOG_DIR"
+echo
+
+# ---- Step 3: Compress .log files older than 7 days ----
+echo "Compressing .log files older than 7 days..."
+
+compressed_count=$(find "$LOG_DIR" -type f -name "*.log" -mtime +7 | wc -l)
+
+find "$LOG_DIR" -type f -name "*.log" -mtime +7 -exec gzip {} \;
+
+echo "Compressed: $compressed_count file(s)"
+echo
+
+# ---- Step 4: Delete .gz files older than 30 days ----
+echo "Deleting .gz files older than 30 days..."
+
+deleted_count=$(find "$LOG_DIR" -type f -name "*.gz" -mtime +30 | wc -l)
+
+find "$LOG_DIR" -type f -name "*.gz" -mtime +30 -exec rm -f {} \;
+
+echo "Deleted: $deleted_count file(s)"
+echo
+
+echo "===== Log Rotation Complete ====="
+```
+
+### Line-by-Line Explanation
+
+#### Strict Mode
+```bash
+set -euo pipefail
+```
+Production-grade safety triple from Day 18:
+- `-e` → exit on any command failure
+- `-u` → error on undefined variables
+- `-o pipefail` → fail if any command in a pipe fails
+
+#### Argument Check
+```bash
+if [ -z "${1:-}" ]; then
+```
+- `$1` → first command-line argument
+- `-z` → tests if a string is empty
+- `${1:-}` → "use `$1` if it exists, otherwise default to empty string." We need this trick because `set -u` would otherwise crash on an unset `$1`.
+
+#### Directory Existence Check
+```bash
+if [ ! -d "$LOG_DIR" ]; then
+```
+- `-d` → tests if path is a directory
+- `!` → negation, "NOT"
+- Together: "if the path is NOT a directory, error out"
+
+#### The Heart — `find` Command
+
+```bash
+find "$LOG_DIR" -type f -name "*.log" -mtime +7 -exec gzip {} \;
+```
+
+This single line is doing most of the work. Breakdown:
+
+| Piece | Meaning |
+|-------|---------|
+| `find` | The Linux file search command (way more powerful than `ls`) |
+| `"$LOG_DIR"` | Where to start searching |
+| `-type f` | Match files only (`f`), not directories |
+| `-name "*.log"` | Match filenames ending in `.log` (`*` is wildcard) |
+| `-mtime +7` | **M**odified **t**ime more than 7 days ago. `+7` = older than 7. `-7` = newer than 7. |
+| `-exec gzip {} \;` | For each match, run `gzip` on it |
+| `{}` | Placeholder — replaced with each matching filename |
+| `\;` | Tells `find` "command ends here." Backslash escapes the semicolon. |
+
+**Plain English:** "In `$LOG_DIR`, find every file ending in `.log` that's older than 7 days, and gzip each one."
+
+#### Command Substitution for Counting
+
+```bash
+compressed_count=$(find ... | wc -l)
+```
+
+- `$(...)` → command substitution, captures command output into a variable
+- `wc -l` → word count with `-l` for line count
+- We count *before* gzipping because after the gzip, the files become `.log.gz` and wouldn't match the `*.log` pattern anymore
+
+#### Deletion Logic
+
+```bash
+find "$LOG_DIR" -type f -name "*.gz" -mtime +30 -exec rm -f {} \;
+```
+
+- `rm` → remove (delete)
+- `-f` → force. Don't ask "are you sure?", don't error if missing. Critical in scripts so they don't hang.
+
+### Test Results
+
+I ran 4 tests to verify every code path:
+
+| Test | Command | Expected Result | Actual |
+|------|---------|-----------------|--------|
+| 1 | `./log_rotate.sh` (no args) | Usage message, exit 1 | ✅ Pass |
+| 2 | `./log_rotate.sh /nonexistent/folder` | Error: Directory does not exist | ✅ Pass |
+| 3 | `./log_rotate.sh ~/test-logs` | Compressed: 3, Deleted: 2 | ✅ Pass |
+| 4 | `ls -la ~/test-logs` | Old files now `.gz`, ancient files gone | ✅ Pass |
+
+### Screenshot
+
+![Task 1 — log rotation execution with all test cases](screenshots/day19/task1-log-rotate-execution.png)
+
+The screenshot shows:
+- **Test 1** caught the missing argument
+- **Test 2** caught the bad directory
+- **Test 3** correctly reported `Compressed: 3 file(s)` and `Deleted: 2 file(s)`
+
+---
+
+## Task 2 — Server Backup Script
+
+### Goal
+
+Build `backup.sh` that:
+1. Takes source + destination directories as arguments
+2. Creates a timestamped `.tar.gz` archive
+3. Verifies the archive was created
+4. Prints archive name and size
+5. Deletes backups older than 14 days
+6. Errors out if source doesn't exist
+
+### Sandbox Setup for This Task
+
+```bash
+# A folder with stuff to back up
+mkdir -p ~/test-source
+echo "important data" > ~/test-source/file1.txt
+echo "more important data" > ~/test-source/file2.txt
+mkdir -p ~/test-source/subfolder
+echo "nested data" > ~/test-source/subfolder/nested.txt
+
+# A folder where backups will go
+mkdir -p ~/test-backups
+
+# Plant a fake 20-day-old backup to test cleanup logic
+touch -d "20 days ago" ~/test-backups/backup-2026-05-07.tar.gz
+```
+
+The `>` is **redirection** — sends `echo`'s output into a file (overwriting). The subfolder/nested file proves `tar` grabs everything recursively.
+
+### Full Script
+
+```bash
+#!/bin/bash
+
+# ===========================================
+# Server Backup Script
+# Usage: ./backup.sh <source_dir> <destination_dir>
+# ===========================================
+
+set -euo pipefail
+
+# ---- Step 1: Check we got both arguments ----
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <source_directory> <destination_directory>"
+    exit 1
+fi
+
+SOURCE_DIR="$1"
+DEST_DIR="$2"
+
+# ---- Step 2: Verify source exists ----
+if [ ! -d "$SOURCE_DIR" ]; then
+    echo "Error: Source directory '$SOURCE_DIR' does not exist"
+    exit 1
+fi
+
+# ---- Step 3: Make sure destination exists (create if not) ----
+mkdir -p "$DEST_DIR"
+
+# ---- Step 4: Build a timestamped archive filename ----
+TIMESTAMP=$(date +%Y-%m-%d)
+ARCHIVE_NAME="backup-${TIMESTAMP}.tar.gz"
+ARCHIVE_PATH="${DEST_DIR}/${ARCHIVE_NAME}"
+
+echo "===== Backup Starting ====="
+echo "Source:      $SOURCE_DIR"
+echo "Destination: $DEST_DIR"
+echo "Archive:     $ARCHIVE_NAME"
+echo
+
+# ---- Step 5: Create the archive ----
+echo "Creating archive..."
+tar -czf "$ARCHIVE_PATH" -C "$(dirname "$SOURCE_DIR")" "$(basename "$SOURCE_DIR")"
+
+# ---- Step 6: Verify the archive was created ----
+if [ ! -f "$ARCHIVE_PATH" ]; then
+    echo "Error: Archive was not created"
+    exit 1
+fi
+
+ARCHIVE_SIZE=$(du -h "$ARCHIVE_PATH" | cut -f1)
+echo "Archive created successfully"
+echo "Name: $ARCHIVE_NAME"
+echo "Size: $ARCHIVE_SIZE"
+echo
+
+# ---- Step 7: Delete backups older than 14 days ----
+echo "Cleaning up old backups (older than 14 days)..."
+old_count=$(find "$DEST_DIR" -type f -name "backup-*.tar.gz" -mtime +14 | wc -l)
+find "$DEST_DIR" -type f -name "backup-*.tar.gz" -mtime +14 -exec rm -f {} \;
+echo "Deleted: $old_count old backup(s)"
+echo
+
+echo "===== Backup Complete ====="
+```
+
+### Line-by-Line Explanation
+
+#### Counting Arguments
+
+```bash
+if [ $# -ne 2 ]; then
+```
+- `$#` → number of arguments passed (Day 17)
+- `-ne` → not equal
+- "If we didn't get exactly 2 arguments, error out"
+
+#### Building the Timestamp
+
+```bash
+TIMESTAMP=$(date +%Y-%m-%d)
+```
+
+`date` is the Linux command that prints current date/time. The `+` introduces a format string:
+
+| Format Code | Meaning | Example |
+|-------------|---------|---------|
+| `%Y` | 4-digit year | `2026` |
+| `%m` | 2-digit month | `05` |
+| `%d` | 2-digit day | `27` |
+
+Result: `TIMESTAMP="2026-05-27"`.
+
+#### String Concatenation
+
+```bash
+ARCHIVE_NAME="backup-${TIMESTAMP}.tar.gz"
+```
+
+`${TIMESTAMP}` is the same as `$TIMESTAMP`, but the braces make boundaries explicit when squishing variables against text. Result: `backup-2026-05-27.tar.gz`.
+
+#### The Big One — `tar` Command
+
+```bash
+tar -czf "$ARCHIVE_PATH" -C "$(dirname "$SOURCE_DIR")" "$(basename "$SOURCE_DIR")"
+```
+
+This looks complex but it's actually doing something smart:
+
+| Piece | Meaning |
+|-------|---------|
+| `tar` | **T**ape **ar**chive — bundles files into one archive |
+| `-c` | **C**reate a new archive |
+| `-z` | Compress with **gz**ip |
+| `-f` | **F**ilename — next argument is the output filename |
+| `"$ARCHIVE_PATH"` | Where to save the archive |
+| `-C "$(dirname "$SOURCE_DIR")"` | **C**hange into this directory first |
+| `"$(basename "$SOURCE_DIR")"` | The folder name to actually archive |
+
+**The `dirname`/`basename` dance:**
+- `dirname /root/test-source` → returns `/root` (parent)
+- `basename /root/test-source` → returns `test-source` (final name)
+
+**Why we do this:** If you naively run `tar -czf backup.tar.gz /root/test-source`, the archive contains the *full path* `root/test-source/file1.txt`. Ugly, plus a security risk when extracting elsewhere. By using `-C` to change into the parent first and archiving just the folder name, you get clean **relative paths** like `test-source/file1.txt`. Standard professional practice.
+
+#### Getting File Size
+
+```bash
+ARCHIVE_SIZE=$(du -h "$ARCHIVE_PATH" | cut -f1)
+```
+
+- `du -h <file>` → disk usage of that file in human-readable form. Outputs something like `4.0K	/root/test-backups/backup-2026-05-27.tar.gz` (size, tab, filename).
+- `|` → pipe, sends output to the next command
+- `cut -f1` → cut and take field 1. By default, `cut` splits on tabs, so we get just `4.0K` — the size, without the filename clutter.
+
+### Test Results
+
+| Test | Command | Result |
+|------|---------|--------|
+| 1 | `./backup.sh` (no args) | Usage message ✅ |
+| 2 | `./backup.sh ~/test-source` (one arg) | Usage message ✅ |
+| 3 | `./backup.sh /fake/source ~/test-backups` | Error: source doesn't exist ✅ |
+| 4 | `./backup.sh ~/test-source ~/test-backups` | Archive created, 4.0K, 1 old backup deleted ✅ |
+| 5 | `tar -tzf ~/test-backups/backup-*.tar.gz` | All files listed with clean relative paths ✅ |
+
+### Screenshot
+
+![Task 2 — backup script with all test cases and archive verification](screenshots/day19/task2-backup-execution.png)
+
+Look at the archive contents at the bottom — `test-source/file1.txt`, `test-source/subfolder/nested.txt`, etc. Clean relative paths, no `/root/` prefix. That's the `dirname`/`basename` trick paying off.
+
+---
+
+## Task 3 — Crontab Understanding & Entries
+
+### What Cron Actually Is
+
+`cron` is a Linux background service (daemon) that has one job: **wake up every minute, check a schedule, and run anything that's due**. It's been around since the 1970s and runs on every Linux server in production.
+
+Each user has their own **crontab** (cron table) file. You don't edit it directly — you use the `crontab` command:
+
+| Command | Purpose |
+|---------|---------|
+| `crontab -l` | **L**ist current user's crontab |
+| `crontab -e` | **E**dit current user's crontab |
+| `crontab -r` | **R**emove (delete) current user's crontab |
+
+### Cron Syntax — The 5 Fields
+
+Every cron line has 5 time fields followed by the command:
+
+```
+* * * * *  command_to_run
+│ │ │ │ │
+│ │ │ │ └── Day of week  (0-7, where 0 AND 7 = Sunday)
+│ │ │ └──── Month        (1-12)
+│ │ └────── Day of month (1-31)
+│ └──────── Hour         (0-23, 24-hour clock)
+└────────── Minute       (0-59)
+```
+
+A `*` in a field means "every value." So `* * * * *` = every minute of every hour of every day.
+
+### Operators You Can Use in Any Field
+
+| Operator | Example | Meaning |
+|----------|---------|---------|
+| `*` | `* * * * *` | Every value |
+| `,` | `0 9,12,18 * * *` | List: at 9 AM, 12 PM, and 6 PM |
+| `-` | `0 9-17 * * *` | Range: every hour 9 AM through 5 PM |
+| `/` | `*/15 * * * *` | Step: every 15 minutes |
+
+### Common Example Translations
+
+| Cron Line | Plain English |
+|-----------|---------------|
+| `0 2 * * *` | Daily at 2:00 AM |
+| `30 4 * * *` | Daily at 4:30 AM |
+| `0 3 * * 0` | At 3:00 AM on Sunday only |
+| `*/5 * * * *` | Every 5 minutes |
+| `0 */2 * * *` | At minute 0 of every 2nd hour |
+| `0 0 1 * *` | Midnight on day 1 of every month |
+| `15 14 * * 1-5` | 2:15 PM on weekdays (Mon–Fri) |
+
+### My Cron Entries
+
+#### Entry 1 — Log Rotation Daily at 2 AM
+
+```
+0 2 * * *  log_rotate.sh
+```
+
+**Breakdown:** Minute=0, Hour=2, Day-of-month=any, Month=any, Day-of-week=any → runs daily at 02:00.
+
+![Cron entry — log rotation](screenshots/day19/task3-cron-log-rotate.png)
+
+#### Entry 2 — Backup Every Sunday at 3 AM
+
+```
+0 3 * * 0  backup.sh
+```
+
+**Breakdown:** Minute=0, Hour=3, any date, any month, Day-of-week=0 (Sunday) → runs Sundays at 03:00.
+
+![Cron entry — backup](screenshots/day19/task3-cron-backup.png)
+
+#### Entry 3 — Health Check Every 5 Minutes
+
+```
+*/5 * * * *  health_check.sh
+```
+
+**Breakdown:** Minute=`*/5` (every 5), every hour, every date, every month, every day → runs at minute 0, 5, 10, 15, ... of every hour.
+
+![Cron entry — health check](screenshots/day19/task3-cron-healthcheck.png)
+
+### Critical Gotcha — Absolute Paths
+
+When you run `./log_rotate.sh` in your terminal, three things happen automatically:
+
+1. Your current working directory is set
+2. `~` expands to your home directory
+3. `$PATH` includes common binary locations
+
+**Cron has NONE of this.** It runs your script in a near-empty environment. If you write `log_rotate.sh` in your crontab, cron won't find it and silently fail (no error message because cron has no terminal to write to).
+
+**Fix:** Always use **absolute paths** in cron, and always **redirect output to a log file** so you can debug.
+
+### Production-Ready Cron Entries
+
+These are what the entries should actually look like in real use:
+
+```cron
+# Daily log rotation at 2 AM
+0 2 * * *  /root/2026/day-19/log_rotate.sh /root/test-logs >> /root/2026/day-19/cron.log 2>&1
+
+# Weekly backup on Sunday at 3 AM
+0 3 * * 0  /root/2026/day-19/backup.sh /root/test-source /root/test-backups >> /root/2026/day-19/cron.log 2>&1
+
+# Health check every 5 minutes
+*/5 * * * *  /root/2026/day-19/health_check.sh >> /root/2026/day-19/cron.log 2>&1
+```
+
+### The Redirect Syntax
+
+```
+>> /root/2026/day-19/cron.log 2>&1
+```
+
+| Piece | Meaning |
+|-------|---------|
+| `>>` | Append stdout to file (`>` would overwrite each time) |
+| `2>&1` | Redirect stderr (fd `2`) to the same place stdout (fd `1`) goes |
+
+Order matters: `>> file 2>&1` works. Flipping them breaks it.
+
+---
+
+## Task 4 — Scheduled Maintenance Script
+
+### Goal
+
+Combine `log_rotate.sh` + `backup.sh` into one orchestrator that:
+1. Calls both scripts in sequence
+2. Logs everything to `/var/log/maintenance.log` with timestamps
+3. Handles failures gracefully (one failing doesn't stop the other)
+4. Gets scheduled to run daily at 1 AM
+
+### Full Script
+
+```bash
+#!/bin/bash
+
+# ===========================================
+# Scheduled Maintenance Script
+# Runs log rotation + backup, logs everything
+# ===========================================
+
+set -euo pipefail
+
+# ---- Configuration ----
+SCRIPT_DIR="/root/2026/day-19"
+LOG_DIR="/root/test-logs"
+SOURCE_DIR="/root/test-source"
+BACKUP_DIR="/root/test-backups"
+MAINT_LOG="/var/log/maintenance.log"
+
+# ---- Helper: log a message with a timestamp ----
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') | $1" | tee -a "$MAINT_LOG"
+}
+
+# ---- Make sure the maintenance log exists and is writable ----
+touch "$MAINT_LOG"
+
+log "===== Maintenance Run Started ====="
+
+# ---- Run Log Rotation ----
+log "--- Running log rotation ---"
+if "$SCRIPT_DIR/log_rotate.sh" "$LOG_DIR" >> "$MAINT_LOG" 2>&1; then
+    log "Log rotation: SUCCESS"
+else
+    log "Log rotation: FAILED"
+fi
+
+# ---- Run Backup ----
+log "--- Running backup ---"
+if "$SCRIPT_DIR/backup.sh" "$SOURCE_DIR" "$BACKUP_DIR" >> "$MAINT_LOG" 2>&1; then
+    log "Backup: SUCCESS"
+else
+    log "Backup: FAILED"
+fi
+
+log "===== Maintenance Run Complete ====="
+echo
+```
+
+### Line-by-Line Explanation
+
+#### Configuration Block at the Top
+
+```bash
+SCRIPT_DIR="/root/2026/day-19"
+LOG_DIR="/root/test-logs"
+SOURCE_DIR="/root/test-source"
+BACKUP_DIR="/root/test-backups"
+MAINT_LOG="/var/log/maintenance.log"
+```
+
+All paths defined once at the top. If we ever move the project, we change **one place**, not the whole script. This is "configuration over hard-coding" — a best practice in every language.
+
+#### The `log` Function — The Smartest Part
+
+```bash
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') | $1" | tee -a "$MAINT_LOG"
+}
+```
+
+Breaking this single line into pieces:
+
+**Piece 1 — Build the timestamp:**
+```bash
+$(date '+%Y-%m-%d %H:%M:%S')
+```
+
+| Format Code | Meaning | Example |
+|-------------|---------|---------|
+| `%Y` | 4-digit year | `2026` |
+| `%m` | Month | `05` |
+| `%d` | Day | `27` |
+| `%H` | Hour (24h) | `14` |
+| `%M` | Minutes | `30` |
+| `%S` | Seconds | `45` |
+
+Produces: `2026-05-27 14:30:45`.
+
+**Piece 2 — Build the full message:**
+```bash
+echo "$(date '...') | $1"
+```
+
+The `|` inside the quotes is a **literal pipe character** (visual separator). `$1` is the message passed to the function. Result: `2026-05-27 14:30:45 | message text`.
+
+**Piece 3 — Split the output to TWO places:**
+```bash
+| tee -a "$MAINT_LOG"
+```
+
+- The `|` (outside quotes) is a real shell pipe
+- `tee` → splits an input stream to two destinations (named after a plumbing T-pipe). Output goes to **both** the terminal **and** the file.
+- `-a` → append (don't overwrite)
+
+**Why this matters:** A single call like `log "Backup started"` produces a timestamped line that's visible on screen AND saved to the log file at the same time.
+
+#### Touch the Log File
+
+```bash
+touch "$MAINT_LOG"
+```
+
+Creates `/var/log/maintenance.log` if it doesn't exist. Ensures `tee -a` has somewhere to write.
+
+#### The `if` Wrapper Around Each Call
+
+```bash
+if "$SCRIPT_DIR/log_rotate.sh" "$LOG_DIR" >> "$MAINT_LOG" 2>&1; then
+    log "Log rotation: SUCCESS"
+else
+    log "Log rotation: FAILED"
+fi
+```
+
+| Piece | Meaning |
+|-------|---------|
+| `if <command>; then` | Run the command; if exit code is 0, execute `then`; otherwise execute `else` |
+| `"$SCRIPT_DIR/log_rotate.sh" "$LOG_DIR"` | Absolute path to the sub-script + its argument |
+| `>> "$MAINT_LOG"` | Append the sub-script's stdout to the log file |
+| `2>&1` | Also send its stderr to the same place |
+
+**Subtle but important — why this overrides `set -e`:**
+
+Normally `set -e` would kill the script the moment `log_rotate.sh` failed. But because we wrapped it in an `if`, Bash treats the failure as "handled" — meaning we still attempt the backup even if log rotation broke. Intentional resilience.
+
+### What the Output Looks Like
+
+**On the terminal (high-level summary only):**
+```
+2026-05-27 02:04:08 | ===== Maintenance Run Started =====
+2026-05-27 02:04:08 | --- Running log rotation ---
+2026-05-27 02:04:08 | Log rotation: SUCCESS
+2026-05-27 02:04:08 | --- Running backup ---
+2026-05-27 02:04:08 | Backup: SUCCESS
+2026-05-27 02:04:08 | ===== Maintenance Run Complete =====
+```
+
+**In `/var/log/maintenance.log` (full detail):**
+Every timestamped summary line PLUS the full inner output from `log_rotate.sh` and `backup.sh` interleaved — `Compressed: 0`, `Archive created successfully`, `Size: 4.0K`, etc.
+
+This **dual-channel logging** is the standard pattern in real ops:
+- Live operator sees the high-level status
+- Log file captures every byte of detail for postmortem
+
+### Cron Entry for Maintenance
+
+```cron
+# Run scheduled maintenance daily at 1 AM
+0 1 * * *  /root/2026/day-19/maintenance.sh >> /root/2026/day-19/cron.log 2>&1
+```
+
+### Screenshot
+
+![Task 4 — maintenance.sh execution and log file contents](screenshots/day19/task4-maintenance-run.png)
+
+The screenshot proves the dual-channel logging — top half is the clean terminal output, bottom half is the full detailed log file content.
+
+---
+
+## Cron Entries Summary
+
+All four cron entries from this project, in their production-ready form:
+
+```cron
+# Daily log rotation at 2 AM
+0 2 * * *  /root/2026/day-19/log_rotate.sh /root/test-logs >> /root/2026/day-19/cron.log 2>&1
+
+# Weekly backup on Sunday at 3 AM
+0 3 * * 0  /root/2026/day-19/backup.sh /root/test-source /root/test-backups >> /root/2026/day-19/cron.log 2>&1
+
+# Health check every 5 minutes
+*/5 * * * *  /root/2026/day-19/health_check.sh >> /root/2026/day-19/cron.log 2>&1
+
+# Combined maintenance daily at 1 AM
+0 1 * * *  /root/2026/day-19/maintenance.sh >> /root/2026/day-19/cron.log 2>&1
+```
+
+> **Note:** These entries were drafted and verified syntactically, but not actually applied to the live crontab. To apply them, you'd run `crontab -e`, paste the entries, save, and they'd be live.
+
+---
+
+## Files Created
+
+| File | Purpose |
+|------|---------|
+| `log_rotate.sh` | Compress old logs, delete ancient compressed logs |
+| `backup.sh` | Create timestamped tar.gz backups, prune old ones |
+| `maintenance.sh` | Orchestrator: runs the above two with timestamped logging |
+| `day-19-project.md` | This documentation file |
+
+---
+
+## Key Learnings
+
+### 1. `find` is the Swiss Army knife of automation
+
+`find` isn't just for searching — combined with `-mtime` and `-exec`, it's how every real-world log rotation, cleanup script, and backup pruner works under the hood. The `-mtime +N` / `-mtime -N` syntax is one of those things that looks weird at first but becomes second nature after a few scripts. Once you internalize that `+N = older than`, `-N = newer than`, `N = exactly`, you can build retention policies for anything.
+
+### 2. The terminal and cron are two completely different environments
+
+Cron isn't "the terminal running automatically" — it's a near-empty environment that doesn't know about your home directory, your `$PATH`, or your aliases. Every command in a cron job must use **absolute paths**, and you must **redirect output to a log file** because cron has no terminal to write to. The number of "my cron job isn't running" Stack Overflow questions caused by this single misunderstanding is enormous. Once you internalize that cron is its own world, you stop hitting this trap.
+
+### 3. Composability is what makes Bash scripts production-grade
+
+Each of these three scripts does **one thing well** — rotate logs, create backups, orchestrate maintenance. The orchestrator (`maintenance.sh`) calls the other two, wraps each in an `if` so failures are isolated, and adds timestamped logging via a `tee`-based helper function. This is the **Unix philosophy** in action: small focused tools, composed together, with each layer adding exactly one responsibility (rotation → backup → orchestration → scheduling). This is the same pattern every real ops automation uses, from systemd services to Kubernetes operators.
+
+---
+
+## Conclusion
+
+Day 19 was less about learning new Bash concepts and more about **composing** Days 16–18 into real production patterns. The scripts in this project are essentially how every Linux server's nightly maintenance jobs are built — strict mode at the top, argument validation, `find` for age-based file operations, `tar` for archival, `tee` for dual-channel logging, and cron for scheduling. From here, the leap to writing systemd timer units, Ansible playbooks, or Terraform provisioners is just a question of new syntax — the underlying patterns are identical.
