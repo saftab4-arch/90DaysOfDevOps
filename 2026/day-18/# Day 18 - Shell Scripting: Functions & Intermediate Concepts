@@ -1,0 +1,630 @@
+# Day 18 - Shell Scripting: Functions & Intermediate Concepts
+
+## Introduction
+
+Today I learned intermediate Bash scripting concepts including:
+
+- Functions
+- Function arguments
+- Local variables
+- Strict mode using `set -euo pipefail`
+- System monitoring commands
+- Building reusable scripts
+
+These concepts are important in DevOps automation, Linux administration, monitoring, deployment scripting, and production-grade shell scripting.
+
+---
+
+# Task 1 - Basic Functions
+
+## Script - `functions.sh`
+
+```bash
+#!/bin/bash
+
+greet() {
+
+    echo "Hello, $1!"
+
+}
+
+add() {
+
+    sum=$(( $1 + $2 ))
+
+    echo "Sum: $sum"
+
+}
+
+greet "Aftab"
+
+add 10 20
+```
+
+---
+
+# Explanation
+
+## What is a Function?
+
+A function is a reusable block of code.
+
+Functions help:
+- avoid repeating code
+- organize scripts
+- improve readability
+- make scripts modular
+
+---
+
+# Function Syntax
+
+```bash
+function_name() {
+
+    commands
+
+}
+```
+
+---
+
+# Calling Functions
+
+```bash
+greet "Aftab"
+```
+
+Runs the `greet` function.
+
+---
+
+# Function Arguments
+
+Inside functions:
+- `$1` = first argument
+- `$2` = second argument
+
+Example:
+
+```bash
+add 10 20
+```
+
+Means:
+
+| Variable | Value |
+|----------|--------|
+| `$1` | 10 |
+| `$2` | 20 |
+
+---
+
+# Arithmetic Expansion
+
+```bash
+$(( $1 + $2 ))
+```
+
+Used for mathematical operations.
+
+Without `$(( ))`, Bash treats values as strings.
+
+---
+
+# Output
+
+```text
+Hello, Aftab!
+Sum: 30
+```
+
+---
+
+# Task 2 - Functions with Return Values
+
+## Script - `disk_check.sh`
+
+```bash
+#!/bin/bash
+
+check_disk() {
+
+    echo "===== DISK USAGE ====="
+
+    df -h /
+
+}
+
+check_memory() {
+
+    echo "===== MEMORY USAGE ====="
+
+    free -h
+
+}
+
+check_disk
+
+check_memory
+```
+
+---
+
+# Explanation
+
+## `df`
+
+Means:
+- disk filesystem
+
+Used to display disk usage.
+
+---
+
+## `-h`
+
+Human-readable format.
+
+Displays sizes like:
+- MB
+- GB
+- TB
+
+instead of raw bytes.
+
+---
+
+## `/`
+
+Represents root filesystem.
+
+---
+
+## `free`
+
+Displays memory usage.
+
+Shows:
+- RAM
+- used memory
+- free memory
+- swap memory
+
+---
+
+# Output Example
+
+```text
+===== DISK USAGE =====
+
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1        40G   12G   26G  32% /
+
+===== MEMORY USAGE =====
+
+              total        used        free
+Mem:           3.8G        1.2G        2.0G
+```
+
+---
+
+# Task 3 - Strict Mode
+
+## Script - `strict_demo.sh`
+
+```bash
+#!/bin/bash
+
+set -euo pipefail
+
+echo "Testing strict mode"
+
+echo "$UNDEFINED_VAR"
+
+echo "This line will not execute"
+```
+
+---
+
+# Explanation of Strict Mode
+
+Strict mode makes scripts safer and more reliable.
+
+---
+
+# `set -e`
+
+Exit immediately if any command fails.
+
+Without it:
+- script continues after errors
+- dangerous for automation
+
+---
+
+# `set -u`
+
+Treat undefined variables as errors.
+
+Without it:
+- Bash treats undefined variables as empty
+- bugs become harder to detect
+
+Example:
+
+```bash
+echo "$UNDEFINED_VAR"
+```
+
+Produces:
+
+```text
+unbound variable
+```
+
+---
+
+# `set -o pipefail`
+
+Makes pipelines fail if any command fails.
+
+Important for:
+- monitoring
+- CI/CD
+- automation scripts
+
+---
+
+# Pipeline Example
+
+```bash
+false | true
+```
+
+Without pipefail:
+- pipeline returns success
+
+With pipefail:
+- pipeline correctly returns failure
+
+---
+
+# Task 4 - Local Variables
+
+## Script - `local_demo.sh`
+
+```bash
+#!/bin/bash
+
+global_var="I am global"
+
+test_local() {
+
+    local local_var="I am local"
+
+    echo "$local_var"
+
+}
+
+test_global() {
+
+    normal_var="I am normal"
+
+}
+
+test_local
+
+echo "$local_var"
+
+test_global
+
+echo "$normal_var"
+```
+
+---
+
+# Explanation
+
+## `local`
+
+Creates variables that exist only inside a function.
+
+---
+
+# Local Variables
+
+```bash
+local local_var="I am local"
+```
+
+Accessible only inside the function.
+
+---
+
+# Global Variables
+
+```bash
+normal_var="I am normal"
+```
+
+Accessible outside the function.
+
+---
+
+# Why Local Variables Matter
+
+They help:
+- avoid conflicts
+- improve script safety
+- make functions reusable
+- keep scripts organized
+
+---
+
+# Output
+
+```text
+I am local
+
+I am normal
+```
+
+The second line is blank because `local_var` does not exist outside the function.
+
+---
+
+# Task 5 - System Information Reporter
+
+## Script - `system_info.sh`
+
+```bash
+#!/bin/bash
+
+set -euo pipefail
+
+print_header() {
+
+    echo
+    echo "=============================="
+    echo "$1"
+    echo "=============================="
+
+}
+
+system_info() {
+
+    print_header "SYSTEM INFORMATION"
+
+    hostname
+
+    uname -a
+
+}
+
+uptime_info() {
+
+    print_header "SYSTEM UPTIME"
+
+    uptime
+
+}
+
+disk_usage() {
+
+    print_header "TOP DISK USAGE"
+
+    du -ah / 2>/dev/null | sort -rh | head -5
+
+}
+
+memory_usage() {
+
+    print_header "MEMORY USAGE"
+
+    free -h
+
+}
+
+cpu_processes() {
+
+    print_header "TOP CPU PROCESSES"
+
+    ps -eo pid,ppid,cmd,%mem,%cpu --sort=-%cpu | head -6
+
+}
+
+main() {
+
+    system_info
+
+    uptime_info
+
+    disk_usage
+
+    memory_usage
+
+    cpu_processes
+
+}
+
+main
+```
+
+---
+
+# Explanation
+
+---
+
+# `hostname`
+
+Displays system hostname.
+
+---
+
+# `uname -a`
+
+Displays:
+- Linux kernel
+- hostname
+- architecture
+- OS information
+
+---
+
+# `uptime`
+
+Shows:
+- system running time
+- current time
+- logged-in users
+- load average
+
+---
+
+# `du`
+
+Disk usage command.
+
+---
+
+# `du -ah`
+
+| Flag | Meaning |
+|------|----------|
+| `-a` | Show all files |
+| `-h` | Human-readable sizes |
+
+---
+
+# `2>/dev/null`
+
+Redirects error output to null device.
+
+Used to hide:
+- permission denied messages
+- unwanted errors
+
+---
+
+# `sort -rh`
+
+| Flag | Meaning |
+|------|----------|
+| `-r` | Reverse order |
+| `-h` | Human-readable sorting |
+
+Sorts largest files first.
+
+---
+
+# `head -5`
+
+Displays first 5 lines only.
+
+---
+
+# `free -h`
+
+Displays memory usage in human-readable format.
+
+---
+
+# `ps`
+
+Displays running processes.
+
+---
+
+# `ps -eo`
+
+Custom output formatting.
+
+---
+
+# `--sort=-%cpu`
+
+Sorts processes by highest CPU usage.
+
+---
+
+# Output Example
+
+```text
+==============================
+SYSTEM INFORMATION
+==============================
+
+ubuntu-server
+
+Linux ubuntu 6.8.0 x86_64 GNU/Linux
+
+==============================
+SYSTEM UPTIME
+==============================
+
+up 2 hours
+
+==============================
+MEMORY USAGE
+==============================
+
+Mem: 3.8G used 1.2G free 2.0G
+```
+
+---
+
+# Important Flags and Symbols Learned
+
+| Flag / Symbol | Meaning |
+|---------------|----------|
+| `$1` | First argument |
+| `$2` | Second argument |
+| `local` | Local function variable |
+| `set -e` | Exit on error |
+| `set -u` | Error on undefined variable |
+| `pipefail` | Fail if pipeline command fails |
+| `-h` | Human-readable |
+| `-a` | Show all |
+| `-r` | Reverse sort |
+| `2>/dev/null` | Hide error output |
+| `--sort=-%cpu` | Sort by CPU usage |
+
+---
+
+# Key Learnings
+
+1. Learned how to build reusable functions in Bash
+2. Learned strict mode for safer scripting
+3. Learned how to create a real system monitoring script
+
+---
+
+# Files Created
+
+| File | Purpose |
+|------|----------|
+| `functions.sh` | Basic function practice |
+| `disk_check.sh` | Disk and memory monitoring |
+| `strict_demo.sh` | Strict mode demonstration |
+| `local_demo.sh` | Local variable demonstration |
+| `system_info.sh` | System information reporting tool |
+
+---
+
+# Screenshots
+
+Add screenshots for:
+- Function execution
+- Strict mode errors
+- Local variable behavior
+- Disk and memory output
+- System information report
+- CPU process listing
+
+---
+
+# Conclusion
+
+Day 18 introduced reusable scripting techniques using functions and strict mode. These concepts are essential for writing cleaner, safer, and production-ready Bash scripts used in DevOps and Linux administration.
