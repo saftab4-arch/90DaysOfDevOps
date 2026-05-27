@@ -1,0 +1,484 @@
+
+# Day 16 - Shell Scripting Basics
+
+## Introduction
+
+Today I learned the fundamentals of Bash shell scripting including:
+
+- Shebang (`#!/bin/bash`)
+- Variables
+- User input using `read`
+- Conditional statements (`if-else`)
+- File checking
+- Service checking using `systemctl`
+
+---
+
+# Task 1 - Your First Script
+
+## Script: `hello.sh`
+
+```bash
+#!/bin/bash
+
+echo "Hello, DevOps!"
+```
+
+---
+
+## Commands Used
+
+### Make Script Executable
+
+```bash
+chmod +x hello.sh
+```
+
+### Run Script
+
+```bash
+./hello.sh
+```
+
+---
+
+## Explanation
+
+### `#!/bin/bash`
+
+This is called the **Shebang**.
+
+It tells Linux to use the Bash interpreter to execute the script.
+
+Without the shebang:
+- the script may run differently
+- another shell may interpret the script incorrectly
+- portability issues can occur
+
+---
+
+### `echo`
+
+Used to print output to the terminal.
+
+Example:
+
+```bash
+echo "Hello"
+```
+
+---
+
+### `chmod +x`
+
+| Part | Meaning |
+|------|----------|
+| `chmod` | Change file permissions |
+| `+x` | Add execute permission |
+
+---
+
+### `./`
+
+Runs the script from the current directory.
+
+| Symbol | Meaning |
+|--------|----------|
+| `.` | Current directory |
+| `./script.sh` | Execute script |
+
+---
+
+# Task 2 - Variables
+
+## Script: `variables.sh`
+
+```bash
+#!/bin/bash
+
+NAME="Aftab"
+ROLE="DevOps Engineer"
+
+echo "Hello, I am $NAME and I am a $ROLE"
+```
+
+---
+
+## Explanation
+
+### Variables
+
+Variables store data.
+
+Example:
+
+```bash
+NAME="Aftab"
+```
+
+Important:
+- no spaces around `=`
+
+Incorrect:
+
+```bash
+NAME = "Aftab"
+```
+
+---
+
+### `$NAME`
+
+The `$` symbol is used to access the value of a variable.
+
+Example:
+
+```bash
+echo $NAME
+```
+
+Output:
+
+```text
+Aftab
+```
+
+---
+
+## Single Quotes vs Double Quotes
+
+### Single Quotes
+
+```bash
+echo '$NAME'
+```
+
+Output:
+
+```text
+$NAME
+```
+
+Single quotes treat everything literally.
+
+---
+
+### Double Quotes
+
+```bash
+echo "$NAME"
+```
+
+Output:
+
+```text
+Aftab
+```
+
+Double quotes allow variable expansion.
+
+---
+
+# Task 3 - User Input with read
+
+## Script: `greet.sh`
+
+```bash
+#!/bin/bash
+
+read -p "Enter your name: " NAME
+
+read -p "Enter your favourite tool: " TOOL
+
+echo "Hello $NAME, your favourite tool is $TOOL"
+```
+
+---
+
+## Explanation
+
+### `read`
+
+Used to take user input.
+
+### `-p`
+
+Displays a prompt message before input.
+
+Example:
+
+```bash
+read -p "Enter your name: " NAME
+```
+
+| Part | Meaning |
+|------|----------|
+| `read` | Take user input |
+| `-p` | Prompt message |
+| `NAME` | Variable storing input |
+
+---
+
+# Task 4 - If-Else Conditions
+
+---
+
+# Part 1 - Number Checker
+
+## Script: `check_number.sh`
+
+```bash
+#!/bin/bash
+
+read -p "Enter a number: " num
+
+if [ "$num" -gt 0 ]; then
+
+    echo "Positive Number"
+
+elif [ "$num" -lt 0 ]; then
+
+    echo "Negative Number"
+
+else
+
+    echo "Number is Zero"
+
+fi
+```
+
+---
+
+## Explanation
+
+### `if`
+
+Used for conditional logic.
+
+---
+
+### `[ condition ]`
+
+Used to test conditions.
+
+Spaces inside brackets are mandatory.
+
+Correct:
+
+```bash
+[ "$num" -gt 0 ]
+```
+
+Incorrect:
+
+```bash
+["$num"-gt0]
+```
+
+---
+
+## Numeric Comparison Flags
+
+| Flag | Meaning |
+|------|----------|
+| `-gt` | Greater than |
+| `-lt` | Less than |
+| `-eq` | Equal |
+| `-ne` | Not equal |
+
+---
+
+### `then`
+
+Runs commands if condition is true.
+
+---
+
+### `elif`
+
+Checks another condition.
+
+---
+
+### `else`
+
+Runs if all previous conditions fail.
+
+---
+
+### `fi`
+
+Ends the if statement.
+
+---
+
+# Part 2 - File Check
+
+## Script: `file_check.sh`
+
+```bash
+#!/bin/bash
+
+read -p "Enter file path: " filepath
+
+if [ -f "$filepath" ]; then
+
+    echo "File exists"
+
+else
+
+    echo "File does not exist"
+
+fi
+```
+
+---
+
+## Explanation
+
+### `-f`
+
+Checks whether a regular file exists.
+
+Example:
+
+```bash
+/etc/passwd
+```
+
+returns true because it is a file.
+
+---
+
+## Common File Test Flags
+
+| Flag | Meaning |
+|------|----------|
+| `-f` | Regular file |
+| `-d` | Directory |
+| `-e` | Exists |
+| `-r` | Readable |
+| `-w` | Writable |
+| `-x` | Executable |
+
+---
+
+# Task 5 - Server Check Script
+
+## Script: `server_check.sh`
+
+```bash
+#!/bin/bash
+
+SERVICE="ssh"
+
+read -p "Do you want to check the service status? (y/n): " answer
+
+if [ "$answer" = "y" ]; then
+
+    systemctl status $SERVICE
+
+    if systemctl is-active --quiet $SERVICE; then
+
+        echo "$SERVICE is active"
+
+    else
+
+        echo "$SERVICE is not active"
+
+    fi
+
+else
+
+    echo "Skipped"
+
+fi
+```
+
+---
+
+# Explanation
+
+## `systemctl`
+
+Used to manage Linux services.
+
+Examples:
+- ssh
+- nginx
+- docker
+
+---
+
+## `is-active`
+
+Checks whether a service is running.
+
+---
+
+## `--quiet`
+
+Suppresses extra output.
+
+Useful in scripts because only the exit code matters.
+
+---
+
+# Exit Codes
+
+Linux commands return exit codes.
+
+| Exit Code | Meaning |
+|-----------|----------|
+| `0` | Success |
+| Non-zero | Failure |
+
+Example:
+
+```bash
+if systemctl is-active --quiet ssh
+```
+
+means:
+
+```text
+If command succeeds, execute the if block
+```
+
+---
+
+# Key Learnings
+
+1. Learned how Bash scripts execute using the shebang (`#!/bin/bash`)
+2. Learned variables, user input, and conditional statements
+3. Learned file checks and service checks using Linux commands
+
+---
+
+# Files Created
+
+| File | Purpose |
+|------|----------|
+| `hello.sh` | First Bash script |
+| `variables.sh` | Variable practice |
+| `greet.sh` | User input |
+| `check_number.sh` | Numeric conditions |
+| `file_check.sh` | File existence check |
+| `server_check.sh` | Service status checker |
+
+---
+
+# Screenshots
+
+Add screenshots here:
+- Script creation
+- chmod commands
+- Script execution
+- Outputs
+- Errors fixed
+
+---
+
+# Conclusion
+
+Day 16 helped build a strong foundation in Bash shell scripting. These scripting fundamentals are important for Linux administration, automation, and DevOps workflows.
