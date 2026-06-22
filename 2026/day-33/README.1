@@ -1,0 +1,239 @@
+Day 33 – Docker Compose: Multi-Container Basics
+Overview
+
+Docker Compose allows multiple containers to be defined and managed from a single YAML file.
+
+Instead of manually creating:
+
+Containers
+Networks
+Volumes
+
+Compose automatically creates and manages them.
+
+Project Structure
+day-33/
+│
+├── compose-basics/
+│   └── docker-compose.yml
+│
+└── wordpress-lab/
+    ├── docker-compose.yml
+    └── .env
+Task 1 – Verify Docker Compose
+
+Check Compose version:
+
+docker compose version
+
+Example:
+
+Docker Compose version v2.5.1
+Task 2 – Single Container Compose
+docker-compose.yml
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - "8081:80"
+Start Container
+docker compose up -d
+
+Output:
+
+Container compose-basics-web-1 Started
+Network compose-basics_default Created
+Verify
+docker ps
+
+Access:
+
+http://localhost:8081
+Stop and Remove
+docker compose down
+
+Compose automatically removes:
+
+Container
+Network
+Task 3 – WordPress + MySQL Stack
+.env File
+MYSQL_ROOT_PASSWORD=supersecret
+MYSQL_DATABASE=wordpressdb
+MYSQL_USER=wpuser
+MYSQL_PASSWORD=wppassword
+
+WORDPRESS_DB_HOST=db:3306
+WORDPRESS_DB_USER=wpuser
+WORDPRESS_DB_PASSWORD=wppassword
+WORDPRESS_DB_NAME=wordpressdb
+docker-compose.yml
+services:
+
+  db:
+    image: mysql:8
+    restart: always
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  wordpress:
+    image: wordpress:latest
+    restart: always
+
+    ports:
+      - "8082:80"
+
+    environment:
+      WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST}
+      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER}
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD}
+      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME}
+
+    depends_on:
+      - db
+
+volumes:
+  mysql-data:
+Architecture
+                 docker compose up -d
+                           │
+                           ▼
+                wordpress-lab_default
+                           │
+          ┌────────────────┴────────────────┐
+          │                                 │
+          ▼                                 ▼
+     wordpress container               mysql container
+          │                                 │
+          │ WORDPRESS_DB_HOST=db:3306       │
+          └────────────connect─────────────►│
+                                            │
+                                    mysql-data volume
+                                            │
+                                    /var/lib/mysql
+                                            │
+                                            ▼
+                               Users / Posts / Settings
+How Containers Communicate
+
+Compose automatically creates a network:
+
+wordpress-lab_default
+
+Both containers join this network.
+
+Service names become DNS names:
+
+db:
+
+becomes:
+
+db
+
+WordPress connects using:
+
+db:3306
+
+No IP addresses are required.
+
+What Does depends_on Do?
+depends_on:
+  - db
+
+Only controls startup order.
+
+Start MySQL first
+↓
+Start WordPress second
+
+Connectivity comes from the Docker network, not depends_on.
+
+Named Volume
+volumes:
+  - mysql-data:/var/lib/mysql
+
+Stores MySQL data outside the container.
+
+Database survives:
+
+docker compose down
+docker compose up -d
+Verify Volume
+docker volume ls
+
+Example:
+
+wordpress-lab_mysql-data
+
+Inspect:
+
+docker volume inspect wordpress-lab_mysql-data
+Persistence Test
+
+After installing WordPress:
+
+Remove containers:
+
+docker compose down
+
+Start again:
+
+docker compose up -d
+
+Result:
+
+WordPress site still exists
+User accounts remain
+Database remains
+
+Because MySQL files are stored inside:
+
+wordpress-lab_mysql-data
+Compose Commands
+Start
+docker compose up -d
+View Containers
+docker compose ps
+View Logs
+docker compose logs
+Follow Logs
+docker compose logs -f
+Logs for Specific Service
+
+WordPress:
+
+docker compose logs wordpress
+
+MySQL:
+
+docker compose logs db
+Stop Containers
+docker compose stop
+Start Stopped Containers
+docker compose start
+Remove Containers and Network
+docker compose down
+Remove Containers, Network, and Volumes
+docker compose down -v
+
+⚠️ Permanently removes database data.
+
+Key Concepts Learned
+Component	Purpose
+docker-compose.yml	Defines multi-container applications
+Service Names	Internal DNS names
+depends_on	Startup order
+Networks	Container communication
+Named Volumes	Persistent storage
+.env File	Externalized configuration
+docker compose up	Start stack
+docker compose down	Remove stack
+docker compose logs	Troubleshooting
+docker compose stop/start	Lifecycle management
