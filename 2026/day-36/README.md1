@@ -1,0 +1,294 @@
+markdown# Day 36 — Dockerized Flask + Postgres + Nginx App
+
+A production-shaped Flask application, fully containerized with Docker Compose. Built as part of the 90 Days of DevOps challenge (Day 36: Dockerize a Full Application).
+
+## What This App Does
+
+A minimal Flask app that connects to a Postgres database and tracks page visits. Every time the homepage loads, it inserts a new row into a `visit` table and displays the running total. It's intentionally simple so the focus stays on the Docker architecture, not the app logic.
+
+## Architecture
+Browser → Nginx (port 80, public) → Gunicorn (port 8000, internal only) → Flask → Postgres (named volume)
+
+- **Nginx** — reverse proxy, the only container exposed to the host machine. Terminates client connections and forwards them internally.
+- **Gunicorn** — WSGI application server running the Flask app with 4 worker processes. Never exposed outside the Docker network.
+- **Flask** — application logic, connects to Postgres via SQLAlchemy.
+- **Postgres** — database, with a named Docker volume so data survives container restarts/recreation.
+
+Three separate containers, one custom bridge network, one persistent named volume.
+
+## Project Structure
+day-36/
+├── app.py                  # Flask application
+├── requirements.txt        # Python dependencies
+├── Dockerfile              # Multi-stage build for the Flask app
+├── .dockerignore           # Files excluded from the Docker build context
+├── docker-compose.yml      # Orchestrates app, db, and nginx services
+├── .env                    # Real secrets (not committed to Git)
+├── .env.example            # Placeholder env vars, safe to commit
+├── .gitignore               # Excludes .env, pycache, etc. from Git
+├── templates/
+│   └── index.html          # Rendered homepage
+└── nginx/
+└── nginx.conf          # Reverse proxy configuration
+
+## Prerequisites
+
+- Docker
+- Docker Compose (bundled with modern Docker installs — check with `docker compose version`)
+
+## Environment Variables
+
+Copy the example file and fill in real values before running:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Description | Example |
+|---|---|---|
+| `POSTGRES_USER` | Postgres username | `flaskuser` |
+| `POSTGRES_PASSWORD` | Postgres password | `SuperSecretPass123` |
+| `POSTGRES_DB` | Database name | `flaskdb` |
+| `DATABASE_URL` | Full connection string used by Flask | `postgresql://flaskuser:SuperSecretPass123@db:5432/flaskdb` |
+
+**Note:** `DATABASE_URL` must stay consistent with the three variables above it — the username, password, and database name are repeated inside the connection string.
+
+## Running the App
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/saftab4-arch/90DaysOfDevOps.git
+cd 90DaysOfDevOps/2026/day-36
+```
+
+`git clone` downloads a full copy of the repository to your machine. `cd` moves into the project folder where `docker-compose.yml` lives.
+
+### 2. Set up environment variables
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set real values for the four variables listed above.
+
+### 3. Build and start all services
+
+```bash
+docker compose up --build
+```
+
+This builds the Flask app image from the Dockerfile, pulls the official Postgres and Nginx images, and starts all three containers in the correct dependency order — Postgres first, then Flask (once Postgres is healthy), then Nginx (once Flask is healthy).
+
+To run in the background instead of watching live logs:
+
+```bash
+docker compose up -d --build
+```
+
+### 4. Verify it's running
+
+```bash
+docker compose ps
+```
+
+All three containers (`flask_app`, `postgres_db`, `nginx_proxy`) should show `Up` / `healthy`.
+
+### 5. Open the app
+
+Visit `http://localhost` in a browser. Refresh a few times — the visit counter should increment on each load, confirming Flask is writing to and reading from Postgres correctly.
+
+Health check endpoint: `http://localhost/health` — should return `{"status":"ok"}`.
+
+### 6. Stop the app
+
+```bash
+docker compose down
+```
+
+Stops and removes all containers. The named volume `pg_data` is **not** deleted, so your database data survives — the next `docker compose up` picks up right where you left off.
+
+To also wipe the database and start completely fresh:
+
+```bash
+docker compose down -v
+```
+
+`-v` removes named volumes along with the containers — use with caution, this permanently deletes all stored data.
+
+## Pulling the Pre-Built Image (No Local Build)
+
+The Flask app image is published on Docker Hub and can be pulled directly instead of built locally:
+docker pull syeddocker04/day-36-app:latest
+
+Docker Hub repository: **https://hub.docker.com/r/syeddocker04/day-36-app**
+
+## Tech Stack
+
+- Python 3.12 / Flask 3.0
+- Gunicorn (WSGI server, 4 workers)
+- Flask-SQLAlchemy + psycopg2 (Postgres driver)
+- Postgres 16 (Alpine)
+- Nginx 1.27 (Alpine, reverse proxy)
+- Docker multi-stage builds, non-root container user
+
+## Security Notes
+
+- Flask app image runs as a non-root user (`appuser`, UID 1000) — never runs as root inside the container.
+- Only Nginx is exposed to the host machine; Gunicorn and Postgres are only reachable on the internal Docker network.
+- No secrets are baked into any image — `.env` is excluded via `.dockerignore` and injected only at container runtime.
+- `requirements.txt` versions are pinned for reproducible builds.
+Now, why each section is there — the reasoning behind the structure, not just the content:
+# Day 36 ... (top heading) — GitHub renders the first # line as the page's main title automatically; this is the first thing anyone sees.
+"What This App Does" — answers the very first question anyone has landing on a repo: what is this, in one paragraph. Recruiters and reviewers decide whether to keep reading within seconds of arriving.
+"Architecture" — a plain-text diagram, since actual images/screenshots don't always render reliably across GitHub previews, forks, and clones. This shows the request flow, which is the most important thing to communicate about why this project is more than a toy Dockerfile.
+"Project Structure" — a lot of reviewers scan the file tree mentally before reading further; spelling it out with one-line comments per file saves them from having to open every file just to understand its purpose.
+"Prerequisites" — sets expectations before someone tries to run anything and hits a confusing error because they don't have Docker installed.
+"Environment Variables" (with the table) — this is what actually satisfies "any environment variables needed" from the task requirements, and directly reflects what we built in .env/.env.example — a table format is scannable at a glance, better than prose for this kind of key-value reference data.
+"Running the App" (numbered steps) — this is the actual reproducibility test: could a stranger, with zero conversation history with you, get this running purely from reading this section? Each command is given standalone, in the order they'd actually run them.
+"Pulling the Pre-Built Image" — directly satisfies the Day 36 requirement to "share the Docker Hub link so others can pull and run it" — this is also what you'll paste into your LinkedIn post.
+"Tech Stack" — a quick-reference list, useful for recruiters skimming multiple repos who want to pattern-match technologies at a glance without reading prose.
+"Security Notes" — this is the part that separates this from a typical Day 36 submission. Explicitly calling out the non-root user, the network isolation (Nginx-only exposure), and the secrets handling shows a reviewer you understood why you made these choices, not just that you copied a pattern.
+Command to create the file:
+bashcat > README.md << 'EOF'
+# Day 36 — Dockerized Flask + Postgres + Nginx App
+
+A production-shaped Flask application, fully containerized with Docker Compose. Built as part of the 90 Days of DevOps challenge (Day 36: Dockerize a Full Application).
+
+## What This App Does
+
+A minimal Flask app that connects to a Postgres database and tracks page visits. Every time the homepage loads, it inserts a new row into a `visit` table and displays the running total. It's intentionally simple so the focus stays on the Docker architecture, not the app logic.
+
+## Architecture
+Browser → Nginx (port 80, public) → Gunicorn (port 8000, internal only) → Flask → Postgres (named volume)
+
+- **Nginx** — reverse proxy, the only container exposed to the host machine. Terminates client connections and forwards them internally.
+- **Gunicorn** — WSGI application server running the Flask app with 4 worker processes. Never exposed outside the Docker network.
+- **Flask** — application logic, connects to Postgres via SQLAlchemy.
+- **Postgres** — database, with a named Docker volume so data survives container restarts/recreation.
+
+Three separate containers, one custom bridge network, one persistent named volume.
+
+## Project Structure
+day-36/
+├── app.py                  # Flask application
+├── requirements.txt        # Python dependencies
+├── Dockerfile              # Multi-stage build for the Flask app
+├── .dockerignore           # Files excluded from the Docker build context
+├── docker-compose.yml      # Orchestrates app, db, and nginx services
+├── .env                    # Real secrets (not committed to Git)
+├── .env.example            # Placeholder env vars, safe to commit
+├── .gitignore               # Excludes .env, pycache, etc. from Git
+├── templates/
+│   └── index.html          # Rendered homepage
+└── nginx/
+└── nginx.conf          # Reverse proxy configuration
+
+## Prerequisites
+
+- Docker
+- Docker Compose (bundled with modern Docker installs — check with `docker compose version`)
+
+## Environment Variables
+
+Copy the example file and fill in real values before running:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Description | Example |
+|---|---|---|
+| `POSTGRES_USER` | Postgres username | `flaskuser` |
+| `POSTGRES_PASSWORD` | Postgres password | `SuperSecretPass123` |
+| `POSTGRES_DB` | Database name | `flaskdb` |
+| `DATABASE_URL` | Full connection string used by Flask | `postgresql://flaskuser:SuperSecretPass123@db:5432/flaskdb` |
+
+**Note:** `DATABASE_URL` must stay consistent with the three variables above it — the username, password, and database name are repeated inside the connection string.
+
+## Running the App
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/saftab4-arch/90DaysOfDevOps.git
+cd 90DaysOfDevOps/2026/day-36
+```
+
+`git clone` downloads a full copy of the repository to your machine. `cd` moves into the project folder where `docker-compose.yml` lives.
+
+### 2. Set up environment variables
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set real values for the four variables listed above.
+
+### 3. Build and start all services
+
+```bash
+docker compose up --build
+```
+
+This builds the Flask app image from the Dockerfile, pulls the official Postgres and Nginx images, and starts all three containers in the correct dependency order — Postgres first, then Flask (once Postgres is healthy), then Nginx (once Flask is healthy).
+
+To run in the background instead of watching live logs:
+
+```bash
+docker compose up -d --build
+```
+
+### 4. Verify it's running
+
+```bash
+docker compose ps
+```
+
+All three containers (`flask_app`, `postgres_db`, `nginx_proxy`) should show `Up` / `healthy`.
+
+### 5. Open the app
+
+Visit `http://localhost` in a browser. Refresh a few times — the visit counter should increment on each load, confirming Flask is writing to and reading from Postgres correctly.
+
+Health check endpoint: `http://localhost/health` — should return `{"status":"ok"}`.
+
+### 6. Stop the app
+
+```bash
+docker compose down
+```
+
+Stops and removes all containers. The named volume `pg_data` is **not** deleted, so your database data survives — the next `docker compose up` picks up right where you left off.
+
+To also wipe the database and start completely fresh:
+
+```bash
+docker compose down -v
+```
+
+`-v` removes named volumes along with the containers — use with caution, this permanently deletes all stored data.
+
+## Pulling the Pre-Built Image (No Local Build)
+
+The Flask app image is published on Docker Hub and can be pulled directly instead of built locally:
+docker pull syeddocker04/day-36-app:latest
+
+Docker Hub repository: **https://hub.docker.com/r/syeddocker04/day-36-app**
+
+## Tech Stack
+
+- Python 3.12 / Flask 3.0
+- Gunicorn (WSGI server, 4 workers)
+- Flask-SQLAlchemy + psycopg2 (Postgres driver)
+- Postgres 16 (Alpine)
+- Nginx 1.27 (Alpine, reverse proxy)
+- Docker multi-stage builds, non-root container user
+
+## Security Notes
+
+- Flask app image runs as a non-root user (`appuser`, UID 1000) — never runs as root inside the container.
+- Only Nginx is exposed to the host machine; Gunicorn and Postgres are only reachable on the internal Docker network.
+- No secrets are baked into any image — `.env` is excluded via `.dockerignore` and injected only at container runtime.
+- `requirements.txt` versions are pinned for reproducible builds.
+EOF
